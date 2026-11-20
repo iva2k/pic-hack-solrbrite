@@ -1,0 +1,10 @@
+out/
+build/
+_build/
+tools/downloads/
+tools/packs/
+.vscode/*.mplab-local.json
+*.o
+*.p1
+*.d
+refs/*.pdf

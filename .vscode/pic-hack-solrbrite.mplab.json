@@ -1,0 +1,43 @@
+{
+  "version": "1.9",
+  "configurations": [
+    {
+      "name": "default",
+      "id": "conf1",
+      "device": "PIC12LF1572",
+      "imageType": "application",
+      "imagePath": "./out/pic-hack-solrbrite/default.elf",
+      "packs": [
+        {
+          "name": "PIC12-16F1xxx_DFP",
+          "vendor": "Microchip",
+          "version": "1.9.258"
+        }
+      ],
+      "fileSet": "sources",
+      "toolchain": "xc8-default"
+    }
+  ],
+  "propertyGroups": [
+    {
+      "name": "xc8-default",
+      "type": "toolchain",
+      "provider": "microchip.toolchains:xc8@3.00",
+      "properties": {
+        "HI-TECH-COMP.optimization-level": "-O2",
+        "HI-TECH-COMP.warning-level": "-3",
+        "HI-TECH-LINK.code-model-rom": "default,-780-7ff"
+      }
+    }
+  ],
+  "fileSets": [
+    {
+      "name": "sources",
+      "files": [
+        {
+          "include": "src/**/*"
+        }
+      ]
+    }
+  ]
+}

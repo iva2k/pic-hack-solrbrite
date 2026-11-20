@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Setup: install toolchain (XC8, DFP, VS Code extensions)",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/setup.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Build (XC8 command line)",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": {
+        "owner": "xc8",
+        "fileLocation": ["absolute"],
+        "pattern": {
+          "regexp": "^(.*?):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+          "file": 1, "line": 2, "column": 3, "severity": 4, "message": 5
+        }
+      }
+    },
+    {
+      "label": "Clean",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-Clean"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Flash via Raspberry Pi (Pickle, LVP)",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/flash-pi.ps1", "-PiHost", "${input:piHost}"],
+      "dependsOn": "Build (XC8 command line)",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "piHost",
+      "type": "promptString",
+      "description": "SSH target of the Raspberry Pi running Pickle",
+      "default": "pi@raspberrypi.local"
+    }
+  ]
+}

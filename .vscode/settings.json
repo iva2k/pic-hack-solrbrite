@@ -1,0 +1,14 @@
+{
+  "files.associations": {
+    "*.h": "c"
+  },
+  "files.exclude": {
+    "out/": false,
+    "tools/downloads/": true
+  },
+  "search.exclude": {
+    "out/": true,
+    "tools/packs/": true,
+    "tools/downloads/": true
+  }
+}
