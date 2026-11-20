@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "Microchip.mplab-extension-pack",
-    "ms-vscode.powershell"
+    "ms-vscode.powershell",
+    "bmpenuelas.markdown-preview-wavedrom"
   ]
 }

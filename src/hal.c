@@ -10,6 +10,14 @@
 #include "board.h"
 #include "hal.h"
 
+/* Pin 4 as a pulled-up input with a falling-edge (press) latch: HV build
+ * only. In the LVP build pin 4 is MCLR and none of this applies. */
+#if HV_PROGRAMMING_ONLY
+#define BUTTON_INPUT_MASK   PIN_BUTTON_MASK
+#else
+#define BUTTON_INPUT_MASK   0x00u
+#endif
+
 static uint16_t s_pwm_period;       /* period in PWM counts */
 static bool     s_pwm_on;           /* output enabled (OE) */
 
@@ -41,12 +49,14 @@ static void pins_init(void)
 {
     LATA   = 0x00u;                                 /* PWM pin low */
     ANSELA = PIN_BATT_MASK | PIN_LIGHT_MASK;        /* AN0, AN3 analog */
-    WPUA   = 0x00u;                                 /* reset value is 0x3F! */
+    /* Reset value is 0x3F! The button pull-up only draws current while the
+     * button is held. */
+    WPUA   = BUTTON_INPUT_MASK;
     TRISA  = (uint8_t)~PIN_PWM_MASK;                /* all inputs except PWM */
     OPTION_REG &= (uint8_t)~OPTION_nWPUEN;          /* allow per-pin WPU */
     APFCON = 0x00u;                                 /* PWM1 on RA1 (pin 6) */
-    IOCAP  = PIN_PIR_MASK;          /* latch PIR rising edges at all times */
-    IOCAN  = 0x00u;
+    IOCAP  = PIN_PIR_MASK;          /* latch PIR rising edges while awake */
+    IOCAN  = BUTTON_INPUT_MASK;
     IOCAF  = 0x00u;
 }
 
@@ -206,6 +216,13 @@ bool hal_pir_active(void)
     return edge || ((PORTA & PIN_PIR_MASK) != 0u);
 }
 
+#if HV_PROGRAMMING_ONLY
+bool hal_button_pressed(void)
+{
+    return ((PORTA & PIN_BUTTON_MASK) == 0u);
+}
+#endif
+
 /* ------------------------------------------------------------------------- */
 /* Sleep                                                                     */
 /* ------------------------------------------------------------------------- */
@@ -217,16 +234,28 @@ uint8_t hal_sleep(bool pir_wake)
     hal_pwm_set(0u);
     ADCON0 = 0x00u;
 
-    /* The PIR rising-edge latch (IOCAP) is always on; IOCIE decides whether
-     * an edge also wakes the core. */
+#if HV_PROGRAMMING_ONLY
+    /* The button must always wake the core, so IOCIE stays set and the PIR
+     * edge detector itself is off while PIR edges must not wake. */
+    IOCAP = pir_wake ? PIN_PIR_MASK : 0x00u;
+    IOCAF = 0x00u;
+    INTCON = INTCON_IOCIE;
+#else
+    /* The PIR rising-edge latch (IOCAP) stays on; IOCIE decides whether an
+     * edge also wakes the core. */
     IOCAF = 0x00u;
     INTCON = pir_wake ? INTCON_IOCIE : 0x00u;
+#endif
 
     CLRWDT();
     SLEEP();
     NOP();
 
     INTCON = 0x00u;
+#if HV_PROGRAMMING_ONLY
+    IOCAP = PIN_PIR_MASK;
+    IOCAF &= (uint8_t)~PIN_BUTTON_MASK;     /* main polls the level instead */
+#endif
     if ((STATUS & STATUS_nTO) == 0u) {
         wake |= WAKE_WDT;
     }

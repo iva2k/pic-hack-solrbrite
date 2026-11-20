@@ -11,46 +11,66 @@ entry that names the one it replaces, and mark the old one "Superseded by Dn".
 
 ---
 
-## D1. Low-voltage programming stays on, so the button is the reset pin
+## D1. The button is a reset only when there's no high-voltage programmer
 
-**Decision:** The configuration bits always set LVP = ON. That makes pin 4,
-the original mode button, MCLR (the PIC's reset pin), so each press resets the
-chip. At boot the firmware reads the MCLR-reset flag in the PCON register and
-advances the mode 1 → 2 → 3 → OFF. A press only counts once the chip has run
-for `BUTTON_DEBOUNCE_MS` without another reset.
+**Decision:** The firmware has two builds, selected by `HV_PROGRAMMING_ONLY`
+in `src/app_config.h`:
+- **LVP build (default, `0`):** LVP = ON. Pin 4, the original mode button, is then MCLR (the PIC's reset pin), so each press resets the chip. At boot the firmware reads the MCLR-reset flag in the PCON register and advances the mode 1 → 2 → 3 → OFF. A press only counts once the chip has run for `BUTTON_DEBOUNCE_MS` without another reset.
+- **HV build (`1`):** LVP = OFF and MCLRE = OFF. Pin 4 is RA3, a normal input with its internal pull-up and interrupt-on-change. The firmware debounces it on the 10 ms tick and advances the mode on release, without a reset. A press wakes the chip from Sleep.
 
-**Context:** The supported programmers (Raspberry Pi + Pickle, MPLAB Snap)
-only do low-voltage programming (LVP): they put the chip into programming mode
-without the roughly 9 V on MCLR that high-voltage programming needs. With
-LVP = ON, the PIC ignores its MCLRE setting and pin 4 is always MCLR, with a
-weak pull-up. The board wires the button to pin 4.
+**Context:** The Raspberry Pi + Pickle and the MPLAB Snap only do low-voltage
+programming (LVP): they put the chip into programming mode at normal logic
+levels, without the 8–9 V on MCLR that high-voltage (HV) programming needs.
+While LVP = ON, the PIC ignores its MCLRE setting and pin 4 is always MCLR.
+The board wires the button to pin 4. The chip refuses to clear LVP during
+low-voltage programming, and once LVP = OFF only HV programming can enter
+programming mode (datasheet DS40001723, CONFIG2 note; programming spec
+DS40001713). So only an HV programmer can write the HV build, or replace it.
 
 **Ruled out:**
-- **LVP = OFF, with the button read as a normal input (RA3).** This frees pin 4, but only a high-voltage programmer (PICkit 4/5) can reprogram the chip afterwards. Neither the Pi nor the Snap can recover it, and the cost rules in AGENTS.md exclude the PICkit.
+- **One build with LVP = OFF.** It locks out the Pi and the Snap, which are the main programmers (D2).
+- **One build with LVP = ON only.** It wastes the pin for anyone who owns an HV programmer: each press resets the chip, which blanks the LEDs while the button is held, cancels a running motion hold and re-reads day/night from a single sample.
 - **Moving the button to another pin.** It needs board rework, and pins 2, 3, 5, 6 and 7 are all in use.
 
-**Rationale:** Every user can reflash the chip with the cheap programmers, and
-the board stays unmodified around the button.
+**Rationale:** The default build works with the cheap programmers, and the
+board stays unmodified around the button. The HV build uses the button pin
+fully for those who can program it. Both builds share all other code, and
+the only differences are behind `#if HV_PROGRAMMING_ONLY`.
 
-**Consequences:** Nothing runs while the button is held down (the chip is in
-reset), so the firmware can't measure how long a press lasts: there is no
-long-press function. A bouncy press produces several resets in a row;
-`BUTTON_DEBOUNCE_MS` filters them.
+**Consequences:**
+- LVP build: nothing runs while the button is held (the chip is in reset), so a press can't be timed: no long-press function. A bouncy press produces several resets in a row; `BUTTON_DEBOUNCE_MS` filters them.
+- HV build: the Pi or the Snap would write it with LVP still on, leaving pin 4 as MCLR and a button that does nothing. So `tools\flash-pi.ps1` refuses a HEX with LVP off, and the HV output has its own name (`solrbrite-hv.hex`).
+- HV build: Microchip's programming spec strongly recommends VPP-first entry (VPP raised before VDD) for a chip with MCLR disabled, so the docs tell HV programmer users to pick it.
+- Both builds advance the mode on release, so the button feels the same.
 
-## D2. Raspberry Pi + Pickle is the main programmer, the MPLAB Snap the fallback
+## D2. Pi + Pickle first, MPLAB Snap as fallback, an HV programmer only for the HV build
 
-**Decision:** Docs and scripts use a Raspberry Pi's GPIO pins with Pickle as
-the main programmer. The MPLAB Snap (PG164100, about $35–40) is the documented
-fallback for people without a Pi.
+**Decision:**
+- **LVP build (the default):** docs and scripts use a Raspberry Pi's GPIO pins with Pickle as the main programmer. The MPLAB Snap (PG164100, about $35–40) is the documented fallback for people without a Pi.
+- **HV build (optional, D1):** a high-voltage programmer. The docs name a PICkit 3 clone (about $25–35) with MPLAB X IPE v6.20 or PICkitminus, and the PICkit 5 (PG164150, about $77) with MPLAB X IPE.
 
 **Context:** AGENTS.md sets the tool order: free and open source first, then
-free closed source, then cheap hardware. Most hobbyists already own a Pi.
+free closed source, then cheap hardware. Most hobbyists already own a Pi. Only
+an HV programmer can write the HV build (D1). The Snap and the new MPLAB
+PICkit Basic can't do HV programming. Pickle can drive HV programming, but the
+Pi can't make 8–9 V itself: it needs an external switching circuit, the
+documented ones are for 5 V chips, and Pickle only raises VDD before VPP.
 
 **Ruled out:**
-- **PICkit 4/5 or MPLAB ICD as the main path.** They work, but cost much more than the Snap, and their main extra, high-voltage programming, isn't needed with LVP on (D1).
+- **PICkit 4/5 or MPLAB ICD as the main path.** They cost much more than the Snap, and their main extra, HV programming, is only needed for the optional HV build.
+- **Pi + Pickle with a home-made 9 V switch for the HV build.** No tested design for a 3.3 V chip, and no VPP-first entry, which the programming spec strongly recommends for the HV build. Worth revisiting if someone builds and tests one: it would make the HV build free for Pi owners.
+- **PICkit 2 clones.** The last official device file doesn't include the PIC12LF1572. A community device file (PICkitminus) lists it, but its HV behavior on this chip is unconfirmed.
+- **PICkit 4.** No longer sold new since September 2023; the PICkit 5 replaces it.
 
-**Rationale:** Pickle is open source and costs nothing extra for anyone who
-owns a Pi. The Snap is the cheapest Microchip programmer for everyone else.
+**Rationale:** The default path costs nothing extra for Pi owners, and the Snap
+is the cheapest Microchip programmer for everyone else. The HV build is
+optional, so no one has to buy an HV programmer. The PICkit 3 clone is the
+cheapest HV tool known to program this chip family. The PICkit 5 is the
+supported, current one.
+
+**Consequences:** MPLAB X IPE dropped the PICkit 3 after v6.20, so PICkit 3
+owners use that archived version or PICkitminus (free of charge, closed
+source).
 
 ## D3. MPLAB XC8 in free mode is the compiler
 

@@ -24,6 +24,21 @@
       }
     },
     {
+      "label": "Build HV variant (high-voltage programmer only)",
+      "type": "shell",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/tools/build.ps1", "-HvProgrammingOnly"],
+      "group": "build",
+      "problemMatcher": {
+        "owner": "xc8",
+        "fileLocation": ["absolute"],
+        "pattern": {
+          "regexp": "^(.*?):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+          "file": 1, "line": 2, "column": 3, "severity": 4, "message": 5
+        }
+      }
+    },
+    {
       "label": "Clean",
       "type": "shell",
       "command": "powershell",

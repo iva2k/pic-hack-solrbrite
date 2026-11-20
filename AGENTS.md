@@ -33,6 +33,10 @@ When writing docs:
 - **Mark what isn't real yet.** A feature or section that isn't implemented, or doesn't work yet, gets a `Status: ...` paragraph right after its heading. When it applies to the whole doc, the paragraph goes at the top (README.md starts with one). Update or remove it when the work is done. Facts written down but not checked go on the README "Not yet verified" list.
 - **Docs explain the architecture; code holds the how.** Docs cover the structure: the parts, how they fit together, how the system works, and why it's done this way. How the code does it lives in the code and its docstrings, not in the docs.
 - **Design goes in the docs**, mainly README.md. Non-trivial decisions also get an entry in DECISIONS.md (see [Decisions](#decisions)).
+- **Draw circuits and timing.** Where text explains a circuit, add a drawing next to it:
+  - Circuits and wiring: a text drawing in a ` ```text ` block, plain ASCII, monospace-aligned. Use SVG only when text can't show it.
+  - Waveforms and timing: a ` ```wavedrom ` block ([WaveDrom](https://wavedrom.com/) JSON). Label arrows with the `app_config.h` constant names, so the diagram stays true when a value changes. VS Code draws them in the Markdown preview with `bmpenuelas.markdown-preview-wavedrom`; GitHub shows the source.
+  - A drawing is part of the doc: update it in the same commit as the circuit, wiring or timing it shows.
 
 ## Tools and cost
 
@@ -46,7 +50,8 @@ What that means today:
 - **Editor:** VS Code with the free MPLAB extension pack. The command-line build (`tools/build.ps1`) must always work without the extension or MPLAB X IDE.
 - **Programmer, primary:** Raspberry Pi (3B+/4B) GPIO with Pickle, open source, low-voltage programming. Most hobbyists already own a Pi.
 - **Programmer, fallback:** MPLAB Snap (PG164100), the cheapest Microchip programmer. Document it as the alternative, not the main path.
-- Don't require PICkit 4/5, MPLAB ICD or other expensive tools. Don't add paid services, cloud build steps or accounts.
+- **Programmer, HV build only (optional):** a high-voltage programmer, such as a PICkit 3 clone or the PICkit 5 (DECISIONS.md D2).
+- Don't require an HV programmer, PICkit 4/5, MPLAB ICD or other expensive tools: the default LVP build never needs them. Don't add paid services, cloud build steps or accounts.
 - Host scripts are PowerShell for Windows (`tools/*.ps1`); Pi-side scripts are POSIX `sh` (`tools/pi/*.sh`). Scripts install only free tools, and say what they install before doing it.
 
 ## Code, docs and tests go in lockstep
@@ -66,7 +71,7 @@ change that touches only one of them is incomplete.
 The test burden is deliberately small: the proof is running on the target.
 - **Build check (every change):** `tools/build.ps1` finishes with no errors and no new warnings. If the compiler isn't available, say so; never claim a build you didn't run.
 - **On-target check:** the steps in TESTING.md, run on a real chip in the light or on a breadboard. Add or update the step for any behavior you change. No unit-test framework or simulator is required; don't add one without asking.
-- **Reporting:** a commit message or PR says which TESTING.md steps were run on target, or plainly "not run on target".
+- **Reporting:** the commit message's `Tested:` bullet (or the PR) says which TESTING.md steps were run on target, or plainly "not run on target".
 
 ## Code style
 
@@ -84,7 +89,7 @@ The test burden is deliberately small: the proof is running on the target.
 
 ## Firmware rules that protect the hardware
 
-- **Never set `LVP = OFF`** in `src/config_bits.c`. The Pi and the Snap only do low-voltage programming; a chip programmed with LVP off can't be reprogrammed by either.
+- **LVP stays on by default.** `LVP = OFF` exists only in the HV build, behind `HV_PROGRAMMING_ONLY` (default `0`, see DECISIONS.md D1). Never make it the default or set it any other way. The Pi and the Snap only do low-voltage programming: they can't write LVP off, and can't program a chip that has it off. That's why the HV HEX has its own name and `tools\flash-pi.ps1` refuses it.
 - Keep program memory out of the HEF settings area, 0x780–0x7FF (`-mrom=default,-780-7ff` in the build and the matching `.mplab.json` setting).
 - RA1 (pin 6) drives the MOSFET gates. It must be low whenever the firmware isn't deliberately lighting the LEDs, including at reset and during sleep.
 - All tunable numbers live in `src/app_config.h`. Don't scatter magic numbers in other files.
@@ -99,10 +104,11 @@ The test burden is deliberately small: the proof is running on the target.
 ## Finishing a task
 
 - **Don't stage or commit** unless the prompt or the process in use asks for it. Leave changes in the working tree.
-- **End with a commit message.** When a task that edited files is finished, end the final response with a commit message in a fenced code block, ready to copy. It covers every uncommitted change the task made:
-  - a summary line in the imperative, 72 characters or less;
-  - a blank line, then a body: what changed and why, plus any adjacent fixes (see [Code style](#code-style));
-  - a `Tested:` line with the build result and the TESTING.md steps run on target, or plainly "not run on target" (see [What "tested" means here](#what-tested-means-here)).
+- **End with a commit message.** When a task that edited files is finished, end the final response with a commit message in a fenced code block, ready to copy. It covers every uncommitted change the task made, and it's short:
+  - One line in the imperative, 72 characters or less. That's the whole message for a single change.
+  - A compound change continues with a bullet list, one short item per part, after a blank line (git treats everything before the first blank line as the subject).
+  - When code or tooling changed, the last bullet gives the test status: `- Tested: T0 build; not run on target` (see [What "tested" means here](#what-tested-means-here)). Docs-only changes skip it.
+  - No attribution lines: no `Co-Authored-By`, no "Generated with".
 
 ## Repository layout
 

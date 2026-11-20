@@ -39,6 +39,30 @@ the 100 nF capacitor across PIC pins 1 and 8. Then wire:
 - **Pin 6 (LED):** 1 kΩ resistor to the LED's long leg, short leg to GND.
 - **Pin 7 (battery):** second potentiometer wiper, ends to 3.3 V and GND. Set it to about 1.6 V for a healthy battery.
 
+```text
+ 3.3 V (Pi pin 1) --+---------------------------- pin 1 VDD
+                    |                             pin 8 VSS ---- GND (Pi pin 6)
+                    |                             100 nF from pin 1 to pin 8
+                    |
+                    +--[motion button]--+-------- pin 2
+                    |                   |
+                    |                 [100k]
+                    |                   |
+                    |                  GND
+                    |
+                    +--[pot A]-- GND
+                    |     |
+                    |     +--- wiper ------------ pin 3   light: up = day, down = night
+                    |
+                    +--[pot B]-- GND
+                          |
+                          +--- wiper ------------ pin 7   battery: about 1.6 V = healthy
+
+ pin 4 ---[mode button]--- GND
+ pin 5 ---[switch or jumper]--- GND               closed = night light on
+ pin 6 ---[1k]--->|--- GND                        LED: long leg (anode) toward the resistor
+```
+
 Note on voltages: the firmware assumes the light's 2.5 V supply. On a 3.3 V
 breadboard every voltage threshold trips at 3.3 / 2.5 = 1.32 times the value
 in `app_config.h`. For example, `LIGHT_NIGHT_MV` 300 becomes about 0.40 V at
@@ -53,10 +77,12 @@ potentiometer while flashing, or program the chip before wiring them.
 Run `tools\build.ps1` (or Ctrl+Shift+B in VS Code).
 - Pass: no errors and no new warnings; `out\cli\solrbrite.hex` is created.
 - Open `out\cli\solrbrite.map` and check nothing is placed at 0x780–0x7FF (the settings area).
+- Also build the HV variant: `tools\build.ps1 -HvProgrammingOnly` (VS Code: **Run Task → Build HV variant**). Pass: the same checks for `out\cli\solrbrite-hv.hex` and `out\cli\solrbrite-hv.map`.
 
 ### T1. Program and verify
 On the Pi, with the chip wired for programming: `p14 lvp id`, then flash with `tools\flash-pi.ps1` from Windows.
 - Pass: `id` reports a PIC12LF1572, and the verify step reports no errors.
+- Pass: `tools\flash-pi.ps1 -Hex out\cli\solrbrite-hv.hex` stops with an "LVP off" error before copying anything to the Pi.
 
 ### T2. Power-up
 Set "night" (pin 3 low), switch open. Power on.
@@ -67,6 +93,12 @@ Press the mode button once, wait, and repeat.
 - Pass: each press lights the LED at the next level for 3 s (`PREVIEW_S`), then it fades off. The order is 1 → 2 → 3 → OFF → 1. At OFF the LED stays dark.
 - Pass: a single press advances exactly one step, even with a bouncy button.
 - Pass: power off, power on. The mode is the same as before power-off (it's saved in the chip).
+
+### T3-HV. Mode button, HV build
+Needs a chip flashed with `solrbrite-hv.hex` by a high-voltage programmer. Repeat T3, then:
+- Pass: with the LED on after "motion" (T5), hold the mode button for a few seconds. The LED stays on while the button is held; the new level shows only after release.
+- Pass: in "day", wait 10 s so the chip is asleep, then press and release. The preview shows straight away (the press wakes the chip).
+- Pass: with the LED on after "motion", press and release once. After the preview, the LED goes back on at the new mode's level for the rest of the 30 s hold. (In the LVP build the reset cancels the hold, and the LED goes off after the preview.)
 
 ### T4. Day and night detection
 With "motion" held off, move the light pot between day and night.

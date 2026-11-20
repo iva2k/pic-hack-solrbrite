@@ -7,8 +7,15 @@
   Uses the newest XC8 under "C:\Program Files\Microchip\xc8" (or -Xc8 path)
   and the DFP extracted by tools\setup.ps1 (or -Dfp path to its xc8 folder).
 
+.PARAMETER HvProgrammingOnly
+  Builds the HV variant (HV_PROGRAMMING_ONLY=1, see DECISIONS.md D1) into
+  out\cli\solrbrite-hv.hex: LVP off, pin 4 a normal button input. Only a
+  high-voltage programmer can write it, or reprogram the chip afterwards.
+
 .EXAMPLE
   tools\build.ps1
+.EXAMPLE
+  tools\build.ps1 -HvProgrammingOnly
 .EXAMPLE
   tools\build.ps1 -Clean
 #>
@@ -17,6 +24,7 @@ param(
     [string]$Xc8 = "",
     [string]$Dfp = "",
     [string]$Optimization = "-O2",
+    [switch]$HvProgrammingOnly,
     [switch]$Clean
 )
 
@@ -24,6 +32,7 @@ $ErrorActionPreference = "Stop"
 $Root   = Split-Path -Parent $PSScriptRoot
 $OutDir = Join-Path $Root "out\cli"
 $Device = "12LF1572"
+$OutName = if ($HvProgrammingOnly) { "solrbrite-hv" } else { "solrbrite" }
 # Keep the High-Endurance Flash (0x780-0x7FF) free for settings
 $RomRange = "default,-780-7ff"
 
@@ -70,9 +79,13 @@ $xcArgs = @(
     $Optimization,
     "-std=c99",
     "-mrom=$RomRange",
-    "-Wl,-Map=$(Join-Path $OutDir 'solrbrite.map')",
-    "-o", (Join-Path $OutDir "solrbrite.elf")
+    "-Wl,-Map=$(Join-Path $OutDir "$OutName.map")",
+    "-o", (Join-Path $OutDir "$OutName.elf")
 )
+if ($HvProgrammingOnly) {
+    $xcArgs += "-DHV_PROGRAMMING_ONLY=1"
+    Write-Warning "HV build: LVP is off. Only a high-voltage programmer can write $OutName.hex, or reprogram the chip afterwards."
+}
 if ($Dfp -ne "") {
     $xcArgs = @("-mdfp=$Dfp") + $xcArgs
 } else {
@@ -85,7 +98,7 @@ Write-Host "DFP : $(if ($Dfp) { $Dfp } else { '(none)' })"
 & $Xc8 @xcArgs
 if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)" }
 
-$hex = Join-Path $OutDir "solrbrite.hex"
+$hex = Join-Path $OutDir "$OutName.hex"
 if (Test-Path $hex) {
     Write-Host "OK  : $hex" -ForegroundColor Green
 } else {

@@ -7,8 +7,10 @@
  *   Night  : LEDs off (or night light if the pin-5 switch is closed); a PIR
  *            edge fades the LEDs up to the selected mode level for
  *            MOTION_HOLD_S after the last motion, then fades back down.
- *   Button : MCLR reset -> mode 1 -> 2 -> 3 -> OFF -> 1, stored in HEF, and
- *            the new mode's brightness is shown for PREVIEW_S seconds.
+ *   Button : mode 1 -> 2 -> 3 -> OFF -> 1 on release, stored in HEF, and the
+ *            new mode's brightness is shown for PREVIEW_S seconds. The LVP
+ *            build sees the press as an MCLR reset; the HV build
+ *            (HV_PROGRAMMING_ONLY) reads pin 4 as an input, without a reset.
  *   Battery: below BATT_CUTOFF_MV all LEDs are disabled until it recovers
  *            above BATT_RESUME_MV.
  *
@@ -46,6 +48,7 @@ static const uint16_t k_level_counts[4] = {
 
 #define SETTLE_TICKS        MS_TO_TICKS(LIGHT_SETTLE_MS)
 #define SENSE_TICKS         ((uint16_t)(SENSE_PERIOD_S * TICKS_PER_S))
+#define DEBOUNCE_TICKS      MS_TO_TICKS(BUTTON_DEBOUNCE_MS)
 
 /* ------------------------------------------------------------------------- */
 /* State                                                                     */
@@ -64,6 +67,57 @@ static uint8_t  s_nl_sense_s;       /* countdown to next night-light blank */
 static uint16_t s_off_ticks;        /* ticks since LEDs reached 0 (saturating) */
 static uint16_t s_sense_ticks;      /* countdown to next periodic sense */
 static uint8_t  s_sec_div;          /* ticks -> seconds */
+
+#if HV_PROGRAMMING_ONLY
+static bool     s_button_down;      /* debounced */
+static uint8_t  s_button_settling_ticks;    /* ticks the raw level has differed */
+#endif
+
+/* ------------------------------------------------------------------------- */
+/* Mode button                                                               */
+/* ------------------------------------------------------------------------- */
+
+/* Step to the next mode in the cycle 1 -> 2 -> 3 -> OFF -> 1, save it to HEF
+ * (stalls the CPU ~2 ms) and start the preview. */
+static void advance_mode(void)
+{
+    s_mode = (uint8_t)((s_mode + 1u) & 0x03u);
+    hal_hef_store(s_mode);
+    s_preview_ticks = (uint16_t)(PREVIEW_S * TICKS_PER_S);
+}
+
+#if HV_PROGRAMMING_ONLY
+/* Debounce pin 4 once per tick. The mode advances on release, the same
+ * moment the LVP build advances it (when MCLR is let go). */
+static void poll_button(void)
+{
+    if (hal_button_pressed() == s_button_down) {
+        s_button_settling_ticks = 0u;
+        return;
+    }
+    if (++s_button_settling_ticks < DEBOUNCE_TICKS) {
+        return;
+    }
+    s_button_settling_ticks = 0u;
+    s_button_down = !s_button_down;
+    if (!s_button_down) {
+        advance_mode();
+    }
+}
+
+/* True while a press is held or a level change is being debounced: the MCU
+ * stays awake to see it through. */
+static bool button_busy(void)
+{
+    return s_button_down || (s_button_settling_ticks != 0u);
+}
+#else
+/* LVP build: the MCU is held in reset while the button is down. */
+static bool button_busy(void)
+{
+    return false;
+}
+#endif
 
 /* ------------------------------------------------------------------------- */
 /* Sensing                                                                   */
@@ -148,6 +202,10 @@ static void tick(void)
 {
     bool pir = hal_pir_active();    /* always consume the edge latch */
 
+#if HV_PROGRAMMING_ONLY
+    poll_button();
+#endif
+
     /* seconds */
     if (++s_sec_div >= TICKS_PER_S) {
         s_sec_div = 0u;
@@ -208,7 +266,7 @@ static bool can_sleep(void)
 {
     return (desired_counts() == 0u) && (fade_current() == 0u) && !fade_busy() &&
            (s_hold_ticks == 0u) && (s_lockout_ticks == 0u) &&
-           (s_preview_ticks == 0u);
+           (s_preview_ticks == 0u) && !button_busy();
 }
 
 static void sleep_once(void)
@@ -237,14 +295,17 @@ static void boot(void)
     }
     s_mode = stored;
 
+#if HV_PROGRAMMING_ONLY
+    /* A button already held at power-on doesn't count as a press. */
+    s_button_down = hal_button_pressed();
+#else
     if ((cause & RESET_MCLR) != 0u) {
         /* A bounce resets us again before this delay ends, so only the final
          * reset of a press/release sequence advances the mode. */
         hal_delay_ms(BUTTON_DEBOUNCE_MS);
-        s_mode = (uint8_t)((s_mode + 1u) & 0x03u);     /* 1,2,3,OFF,1... */
-        hal_hef_store(s_mode);
-        s_preview_ticks = (uint16_t)(PREVIEW_S * TICKS_PER_S);
+        advance_mode();
     }
+#endif
 
     s_warmup_s = ((cause & RESET_POR) != 0u) ? PIR_WARMUP_S : 0u;
 

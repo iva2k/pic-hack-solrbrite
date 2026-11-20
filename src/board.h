@@ -7,7 +7,8 @@
  *   1   VDD   VCC 2.5 V (U2 regulator)                    supply
  *   2   RA5   PIR.a, digital PIR output                   input, IOC rising
  *   3   RA4   phototransistor ("CDS") + R1 330k || C3     AN3 light level
- *   4   RA3   button to GND                               MCLR (LVP on)
+ *   4   RA3   button to GND                               MCLR (LVP build), or
+ *                                                         input + WPU + IOC (HV build)
  *   5   RA2   unused on stock board -> night-light switch input + WPU
  *   6   RA1   R9 620R -> Q1..Q5 gates (R8 100k to GND)    PWM1 output
  *   7   RA0   B+ via R3 1.2M / R2 620k || C4              AN0 battery
@@ -20,7 +21,7 @@
 #define PIN_BATT_MASK       0x01u   /* RA0, pin 7, AN0 */
 #define PIN_PWM_MASK        0x02u   /* RA1, pin 6, PWM1 (APFCON.P1SEL = 0) */
 #define PIN_NLSW_MASK       0x04u   /* RA2, pin 5 */
-#define PIN_BUTTON_MASK     0x08u   /* RA3, pin 4, MCLR */
+#define PIN_BUTTON_MASK     0x08u   /* RA3, pin 4, MCLR in the LVP build */
 #define PIN_LIGHT_MASK      0x10u   /* RA4, pin 3, AN3 */
 #define PIN_PIR_MASK        0x20u   /* RA5, pin 2 */
 

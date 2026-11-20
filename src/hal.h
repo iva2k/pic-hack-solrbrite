@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "app_config.h"
 
 /* Reset causes reported by hal_init() */
 #define RESET_POR       0x01u   /* power-on (or brown-out) */
@@ -42,8 +43,15 @@ bool     hal_nightlight_switch_closed(void);
  * since the last call (the latch is cleared). */
 bool     hal_pir_active(void);
 
-/* Sleep until the watchdog period expires or (if pir_wake) the PIR rises.
- * PWM must already be at 0. Returns WAKE_* flags. */
+#if HV_PROGRAMMING_ONLY
+/* Mode button on pin 4, raw level (no debounce): true while pressed. */
+bool     hal_button_pressed(void);
+#endif
+
+/* Sleep until the watchdog period expires, the PIR rises (if pir_wake) or,
+ * in the HV build, the button is pressed. PWM must already be at 0.
+ * Returns WAKE_* flags; a button wake isn't flagged, the next button poll
+ * sees the press. */
 uint8_t  hal_sleep(bool pir_wake);
 
 /* High-Endurance Flash: settings byte with an inverted copy for validation.

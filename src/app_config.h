@@ -58,17 +58,30 @@
 #define FADE_OFF_MS             1500u       /* toward a dimmer level / off */
 
 /* ------------------------------------------------------------------------- */
-/* Button (pin 4, RA3/MCLR to GND)                                           */
+/* Programming method and button (pin 4, RA3/MCLR, button to GND)            */
 /* ------------------------------------------------------------------------- */
-/* LVP stays enabled (Pickle / MPLAB Snap program in LVP mode only), so pin 4
- * is always MCLR with its weak pull-up. A press resets the MCU; firmware
- * detects the MCLR reset and advances the mode: 1 -> 2 -> 3 -> OFF -> 1.   */
+/* Which programmers the build supports (DECISIONS.md D1). In both builds a
+ * button press advances the mode 1 -> 2 -> 3 -> OFF -> 1 when it's released.
+ *   0 (default) LVP build: low-voltage programming stays on, so the Pi
+ *     (Pickle) and the MPLAB Snap can program the chip. Pin 4 is then always
+ *     MCLR: a press resets the MCU and the mode advances at boot.
+ *   1 HV build: LVP and MCLR are off and pin 4 is a normal input. A press
+ *     wakes the MCU and changes the mode without a reset, so the day/night
+ *     state and a running motion hold are kept. Only a high-voltage
+ *     programmer can write this build or reprogram the chip afterwards: the
+ *     chip refuses to clear LVP during low-voltage programming.
+ *     tools\build.ps1 -HvProgrammingOnly sets it to 1. */
+#ifndef HV_PROGRAMMING_ONLY
+#define HV_PROGRAMMING_ONLY     0
+#endif
 
 /* After a mode change the LEDs show that mode's brightness for N seconds. */
 #define PREVIEW_S               3u
 
-/* Contact bounce on press/release produces several MCLR resets. The mode is
- * only advanced after the MCU has run this long without another reset. */
+/* Contact bounce filter. LVP build: a bouncy press produces several MCLR
+ * resets, and the mode only advances once the MCU has run this long without
+ * another reset. HV build: the pin must hold a new level this long before a
+ * press or release counts. */
 #define BUTTON_DEBOUNCE_MS      60u
 
 /* Mode used when nothing valid is stored in HEF (first boot). 0=OFF, 1..3. */

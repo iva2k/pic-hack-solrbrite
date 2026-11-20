@@ -3,7 +3,8 @@
   Installs the tools needed to build this project on Windows.
 
 .DESCRIPTION
-  1. VS Code extensions (MPLAB Extension Pack, PowerShell) via the `code` CLI.
+  1. VS Code extensions (MPLAB Extension Pack, PowerShell, WaveDrom timing
+     diagrams in the Markdown preview) via the `code` CLI.
   2. MPLAB XC8 compiler (free mode) via winget, or from -Xc8InstallerUrl.
   3. PIC12-16F1xxx Device Family Pack (DFP) into tools\packs\ for the
      command-line build (the MPLAB VS Code extension manages its own packs).
@@ -26,7 +27,6 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Root      = Split-Path -Parent $PSScriptRoot
 $Downloads = Join-Path $PSScriptRoot "downloads"
 $Packs     = Join-Path $PSScriptRoot "packs"
 $Xc8Page   = "https://www.microchip.com/en-us/tools-resources/develop/mplab-xc-compilers/xc8"
@@ -50,7 +50,7 @@ if (-not $SkipExtensions) {
     if ($null -eq $code) {
         Write-Warning "VS Code CLI 'code' not on PATH; install the recommended extensions from the Extensions view instead."
     } else {
-        foreach ($ext in @("Microchip.mplab-extension-pack", "ms-vscode.powershell")) {
+        foreach ($ext in @("Microchip.mplab-extension-pack", "ms-vscode.powershell", "bmpenuelas.markdown-preview-wavedrom")) {
             & $code.Source --install-extension $ext
         }
     }
