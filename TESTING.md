@@ -13,7 +13,7 @@ constant, the expected result changes with it.
 
 ## What you need
 
-- A programmed PIC12LF1572 and the Raspberry Pi programming setup from the README (or an MPLAB Snap).
+- A programmed PIC12LF1572 (the DIP-8 PIC12LF1572-I/P for the breadboard; see [What you need](README.md#what-you-need) for part links) and the Raspberry Pi programming setup from the README (or an MPLAB Snap).
 - A multimeter. A scope helps for T9 but isn't required for the rest.
 - For breadboard tests (setup B below): breadboard, jumper wires, one LED plus a 1 kΩ resistor, two push buttons, one toggle switch or a jumper, two 10 kΩ potentiometers, a 100 kΩ resistor, a 100 nF capacitor.
 - Optional, for T8: an adjustable bench power supply (about 3–4.5 V, current limit set to 1 A or less).
